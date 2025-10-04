@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NomaTV - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            padding: 50px 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #667eea;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .input-wrapper {
+            position: relative;
+        }
+        
+        .input-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 18px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px 15px 15px 45px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+        
+        .form-group input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .alert {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 2px solid #fcc;
+        }
+        
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 2px solid #cfc;
+        }
+        
+        .loading {
+            text-align: center;
+            margin-top: 15px;
+            color: #667eea;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🎬 NomaTV</h1>
+            <p>Sistema de Gestão IPTV</p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="usuario">Usuário</label>
+                <div class="input-wrapper">
+                    <i>👤</i>
+                    <input type="text" id="usuario" name="usuario" placeholder="Digite seu usuário" required autocomplete="username">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="senha">Senha</label>
+                <div class="input-wrapper">
+                    <i>🔒</i>
+                    <input type="password" id="senha" name="senha" placeholder="Digite sua senha" required autocomplete="current-password">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn">Entrar</button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            Conectando...
+        </div>
+        
+        <div id="alert" class="alert alert-error"></div>
+        
+        <div class="footer">
+            NomaTV © 2025 - Todos os direitos reservados
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const loading = document.getElementById('loading');
+        const alertBox = document.getElementById('alert');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Desabilita botão e mostra loading
+            const btn = form.querySelector('.btn');
+            btn.disabled = true;
+            btn.textContent = 'Entrando...';
+            loading.style.display = 'block';
+            alertBox.style.display = 'none';
+
+            const usuario = document.getElementById('usuario').value;
+            const senha = document.getElementById('senha').value;
+
+            try {
+                console.log('🚀 Enviando login...', { usuario });
+                
+                const response = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Incluir cookies
+                    body: JSON.stringify({ 
+                        action: 'login', 
+                        username: usuario, 
+                        password: senha 
+                    })
+                });
+
+                console.log('📡 Resposta recebida:', response.status);
+                const data = await response.json();
+                console.log('📦 Dados:', data);
+
+                if (data.success) {
+                    showAlert('✅ Login realizado com sucesso!', 'success');
+                    
+                    // ✅ SALVAR DADOS NO FORMATO ESPERADO PELO API.JS
+                    if (data.data) {
+                        // Formato esperado pelo api.js checkAuthentication()
+                        sessionStorage.setItem('revendedorId', data.data.id);
+                        sessionStorage.setItem('masterType', data.data.master);
+                        sessionStorage.setItem('userName', data.data.nome || data.data.usuario);
+                        sessionStorage.setItem('userType', data.data.tipo);
+                        sessionStorage.setItem('loginTime', new Date().toISOString());
+
+                        // Também salvar no localStorage para persistência
+                        localStorage.setItem('revendedorId', data.data.id);
+                        localStorage.setItem('masterType', data.data.master);
+                        localStorage.setItem('userName', data.data.nome || data.data.usuario);
+                        localStorage.setItem('userType', data.data.tipo);
+                        localStorage.setItem('logged_in', 'true');
+                        localStorage.setItem('login_timestamp', Date.now());
+
+                        console.log('💾 Dados salvos corretamente:', {
+                            revendedorId: data.data.id,
+                            masterType: data.data.master,
+                            userName: data.data.nome,
+                            userType: data.data.tipo
+                        });
+                    }
+                    
+                    // ✅ GARANTIR QUE OS DADOS FORAM SALVOS ANTES DE REDIRECIONAR
+                    setTimeout(() => {
+                        const redirect = data.data.redirect || '/admin.html';
+                        console.log('🔄 Redirecionando para:', redirect);
+                        console.log('💾 Verificação final sessionStorage:', sessionStorage.getItem('logged_in'));
+
+                        // ✅ TESTE: Redirecionar na mesma aba (não nova)
+                        window.location.replace(redirect);
+                    }, 200); // Reduzido para 200ms
+                } else {
+                    throw new Error(data.message || 'Credenciais inválidas');
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                showAlert(error.message || 'Erro ao conectar com o servidor', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Entrar';
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        function showAlert(message, type = 'error') {
+            alertBox.textContent = message;
+            alertBox.className = `alert alert-${type}`;
+            alertBox.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => alertBox.style.display = 'none', 3000);
+            }
+        }
+        
+        // Auto-focus no campo usuário
+        document.getElementById('usuario').focus();
+    </script>
+</body>
+</html>

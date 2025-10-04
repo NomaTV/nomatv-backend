@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste de Sessão - NomaTV</title>
+</head>
+<body>
+    <h1>Teste de Verificação de Sessão</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testarSessao() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<p>🔄 Testando sessão...</p>';
+            
+            try {
+                const response = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // IMPORTANTE: Inclui cookies
+                    body: JSON.stringify({ action: 'check' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    result.innerHTML = `
+                        <h2 style="color: green">✅ Sessão Válida!</h2>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    result.innerHTML = `
+                        <h2 style="color: red">❌ Sessão Inválida</h2>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        <p><a href="/">Fazer login novamente</a></p>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `
+                    <h2 style="color: red">❌ Erro</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        testarSessao();
+    </script>
+</body>
+</html>

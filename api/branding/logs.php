@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Dependências obrigatórias
 require_once __DIR__ . '/config/database_sqlite.php';
-require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/helpers/auth_helper.php';
 
 /**
  * Função auxiliar para padronizar respostas JSON.
@@ -53,12 +53,13 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
 /**
  * Verificação de permissão - Apenas administradores
  */
-$user = verificarAutenticacao();
-if (!$user) {
-    respostaNaoAutenticado();
+try {
+    $userData = verificarPermissao(['admin']);
+} catch (Exception $e) {
+    http_response_code(403);
+    standardResponse(false, null, 'Acesso negado: ' . $e->getMessage());
+    exit();
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
 
 /**
  * Roteamento principal

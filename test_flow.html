@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Automático de Sessão</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .log { margin: 5px 0; padding: 10px; background: #2a2a2a; border-left: 4px solid #0f0; }
+        .error { border-color: #f00; color: #f00; }
+        .success { border-color: #0f0; color: #0f0; }
+        .warning { border-color: #ff0; color: #ff0; }
+        pre { background: #000; padding: 10px; overflow-x: auto; margin: 5px 0; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Teste Automático de Sessão - NomaTV</h1>
+    
+    <button onclick="testarFluxoCompleto()">▶️ Executar Teste</button>
+    <button onclick="limparLogs()">🗑️ Limpar Logs</button>
+    <button onclick="verSessionStorage()">💾 Ver SessionStorage</button>
+    <button onclick="verCookies()">🍪 Ver Cookies</button>
+    
+    <div id="logs"></div>
+    
+    <script>
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logsDiv.appendChild(div);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function limparLogs() {
+            logsDiv.innerHTML = '';
+        }
+        
+        function verSessionStorage() {
+            log('<h3>💾 SessionStorage:</h3>', 'info');
+            const keys = Object.keys(sessionStorage);
+            if (keys.length === 0) {
+                log('SessionStorage vazio', 'warning');
+            } else {
+                keys.forEach(key => {
+                    log(`${key}: ${sessionStorage.getItem(key)}`, 'success');
+                });
+            }
+        }
+        
+        function verCookies() {
+            log('<h3>🍪 Cookies:</h3>', 'info');
+            if (document.cookie) {
+                log(document.cookie, 'success');
+            } else {
+                log('Nenhum cookie presente', 'warning');
+            }
+        }
+        
+        async function testarFluxoCompleto() {
+            limparLogs();
+            log('🚀 INICIANDO TESTE DE FLUXO COMPLETO...', 'info');
+            log('='.repeat(80), 'info');
+            
+            // Limpar tudo antes
+            sessionStorage.clear();
+            log('🗑️ SessionStorage limpo', 'info');
+            
+            try {
+                // PASSO 1: LOGIN
+                log('<h3>📋 PASSO 1: LOGIN</h3>', 'info');
+                log('Enviando credenciais...', 'info');
+                
+                const loginResponse = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        action: 'login', 
+                        username: 'admin', 
+                        password: 'admin123' 
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                log(`<pre>${JSON.stringify(loginData, null, 2)}</pre>`, 
+                    loginData.success ? 'success' : 'error');
+                
+                if (!loginData.success) {
+                    throw new Error('Login falhou: ' + loginData.message);
+                }
+                
+                // Salvar no sessionStorage (simular index.html)
+                if (loginData.data) {
+                    sessionStorage.setItem('user_id', loginData.data.id);
+                    sessionStorage.setItem('username', loginData.data.usuario);
+                    sessionStorage.setItem('user_name', loginData.data.nome);
+                    sessionStorage.setItem('user_type', loginData.data.tipo);
+                    sessionStorage.setItem('logged_in', 'true');
+                    log('✅ Dados salvos no sessionStorage', 'success');
+                }
+                
+                // Verificar cookies
+                log(`🍪 Cookies após login: ${document.cookie || '(nenhum)'}`, 'info');
+                
+                // PASSO 2: AGUARDAR (simular redirecionamento)
+                log('<h3>📋 PASSO 2: AGUARDANDO...</h3>', 'info');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                log('✅ Delay de 1 segundo concluído', 'info');
+                
+                // PASSO 3: VERIFICAR SESSÃO (simular admin.html)
+                log('<h3>📋 PASSO 3: VERIFICAR SESSÃO</h3>', 'info');
+                
+                for (let i = 1; i <= 5; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    log(`🔍 Tentativa ${i}/5...`, 'info');
+                    
+                    const checkResponse = await fetch('/api/auth.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ action: 'check' })
+                    });
+                    
+                    const checkData = await checkResponse.json();
+                    
+                    if (checkData.success) {
+                        log(`✅ Check ${i}: SUCESSO - ${checkData.message}`, 'success');
+                        log(`   User: ${checkData.data.usuario} (${checkData.data.tipo})`, 'success');
+                    } else {
+                        log(`❌ Check ${i}: FALHOU - ${checkData.message}`, 'error');
+                        throw new Error('Verificação de sessão falhou');
+                    }
+                }
+                
+                // PASSO 4: VERIFICAR ESTADO FINAL
+                log('<h3>📋 PASSO 4: ESTADO FINAL</h3>', 'info');
+                log(`🍪 Cookies finais: ${document.cookie || '(nenhum)'}`, 'info');
+                verSessionStorage();
+                
+                log('='.repeat(80), 'info');
+                log('🎉 TESTE COMPLETO EXECUTADO COM SUCESSO!', 'success');
+                
+            } catch (error) {
+                log('='.repeat(80), 'info');
+                log(`❌ ERRO NO TESTE: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        // Executar teste ao carregar
+        window.addEventListener('load', () => {
+            log('✅ Página carregada - pronta para testes', 'success');
+            log('Clique em "▶️ Executar Teste" para iniciar', 'info');
+        });
+    </script>
+</body>
+</html>

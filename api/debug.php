@@ -1,29 +1,22 @@
 <?php
-try {
-    require_once __DIR__ . '/config/database_sqlite.php';
-    $db = getDatabaseConnection();
-    echo "Conexão OK\n";
+header('Content-Type: application/json');
 
-    // Verificar tabelas
-    $result = $db->query("SELECT name FROM sqlite_master WHERE type='table'");
-    echo "Tabelas:\n";
-    foreach($result as $row) {
-        echo "- " . $row['name'] . "\n";
-    }
+// Tentar ler de REQUEST_BODY (variável de ambiente do Node.js) ou php://input
+$rawInput = $_SERVER['REQUEST_BODY'] ?? file_get_contents('php://input');
+$decoded = json_decode($rawInput, true);
 
-    // Verificar se há usuários
-    $stmt = $db->query("SELECT COUNT(*) as total FROM revendedores");
-    $count = $stmt->fetch();
-    echo "Total de revendedores: " . $count['total'] . "\n";
+$debug = [
+    'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'] ?? 'N/A',
+    'CONTENT_TYPE' => $_SERVER['CONTENT_TYPE'] ?? 'N/A',
+    'REQUEST_BODY_ENV' => $_SERVER['REQUEST_BODY'] ?? 'N/A',
+    'raw_input' => $rawInput,
+    'raw_input_length' => strlen($rawInput),
+    'decoded' => $decoded,
+    'POST' => $_POST,
+    'GET' => $_GET,
+    'action' => $decoded['action'] ?? 'N/A',
+    'username' => $decoded['username'] ?? 'N/A'
+];
 
-    // Listar usuários
-    $stmt = $db->query("SELECT id, usuario, tipo FROM revendedores");
-    echo "Usuários:\n";
-    while($user = $stmt->fetch()) {
-        echo "- ID: {$user['id']}, Usuario: {$user['usuario']}, Tipo: {$user['tipo']}\n";
-    }
-
-} catch(Exception $e) {
-    echo "Erro: " . $e->getMessage() . "\n";
-}
+echo json_encode($debug, JSON_PRETTY_PRINT);
 ?>

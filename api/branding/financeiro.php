@@ -40,15 +40,14 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
     exit();
 }
 
-require_once __DIR__ . '/config/session.php';
-
-// ✅ AUTENTICAÇÃO USANDO SESSION COMUM
-$user = verificarAutenticacao();
-if (!$user) {
-    respostaNaoAutenticado();
+// ✅ AUTENTICAÇÃO PADRÃO (OBRIGATÓRIA)
+session_start();
+if (empty($_SESSION['id_revendedor']) || empty($_SESSION['master'])) {
+    http_response_code(401);
+    exit('{"success":false,"message":"Usuário não autenticado"}');
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+$loggedInRevendedorId = $_SESSION['id_revendedor'];
+$loggedInUserType = $_SESSION['master'];
 
 // ✅ ROTEAMENTO PRINCIPAL
 $method = $_SERVER['REQUEST_METHOD'];

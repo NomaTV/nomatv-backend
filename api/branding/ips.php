@@ -33,7 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Dependências obrigatórias
 require_once __DIR__ . '/config/database_sqlite.php'; // Apenas a conexão com o banco de dados
-require_once __DIR__ . '/config/session.php';
+// auth_helper.php não é mais necessário para permissões/logs neste ficheiro
+// require_once __DIR__ . '/helpers/auth_helper.php';
 
 /**
  * Função auxiliar para padronizar respostas JSON.
@@ -52,13 +53,45 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
     exit(); // Garante que nada mais seja enviado
 }
 
-// ✅ AUTENTICAÇÃO USANDO SESSION COMUM
-$user = verificarAutenticacao();
-if (!$user) {
-    respostaNaoAutenticado();
+// =============================================
+// 🔗 CONEXÃO COM BANCO DE DADOS (SEM LÓGICA DE CRIAÇÃO AQUI)
+// =============================================
+try {
+    // Tenta diferentes nomes de banco para desenvolvimento/teste
+    $dbFiles = ['db.db', 'db (7).db', 'nomatv.db'];
+    $db = null;
+    
+    foreach ($dbFiles as $dbFile) {
+        if (file_exists(__DIR__ . '/' . $dbFile)) {
+            $dbPath = __DIR__ . '/' . $dbFile;
+            $db = new PDO('sqlite:' . realpath($dbPath));
+            break;
+        }
+    }
+    
+    if (!$db) {
+        // Se nenhum arquivo existente for encontrado, tenta criar um novo 'db.db'
+        // Mas a criação principal deve ser feita pelo db_installer.php
+        $db = new PDO('sqlite:' . __DIR__ . '/db.db');
+    }
+    
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+} catch (PDOException $e) {
+    // Em caso de falha na conexão, informa que o banco pode não estar inicializado
+    http_response_code(500);
+    standardResponse(false, null, 'Erro de conexão com o banco de dados. Por favor, execute db_installer.php.');
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+
+// ✅ AUTENTICAÇÃO PADRÃO (SUBSTITUI SIMULAÇÃO HARDCODED)
+session_start();
+if (empty($_SESSION['id_revendedor']) || empty($_SESSION['master'])) {
+    http_response_code(401);
+    exit('{"success":false,"message":"Usuário não autenticado"}');
+}
+$loggedInRevendedorId = $_SESSION['id_revendedor'];
+$loggedInUserType = $_SESSION['master'];
 
 /**
  * Roteamento principal

@@ -31,7 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config/database_sqlite.php';
-require_once __DIR__ . '/config/session.php';
 
 /**
  * Resposta padronizada
@@ -48,14 +47,15 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
 }
 
 // =============================================
-// ✅ AUTENTICAÇÃO USANDO SESSION COMUM
+// ✅ AUTENTICAÇÃO REAL: session_start igual ao auth.php
 // =============================================
-$user = verificarAutenticacao();
-if (!$user) {
-    respostaNaoAutenticado();
+session_start();
+if (empty($_SESSION['id_revendedor']) || empty($_SESSION['master'])) {
+    http_response_code(401);
+    exit('{"success":false,"message":"Usuário não autenticado"}');
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+$loggedInRevendedorId = $_SESSION['id_revendedor'];
+$loggedInUserType = $_SESSION['master'];
 
 // =============================================
 // 🔗 ROTEAMENTO PRINCIPAL

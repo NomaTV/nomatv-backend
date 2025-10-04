@@ -18,8 +18,39 @@
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
+// ✅ CONFIGURAR SESSÕES PHP PARA FUNCIONAR COM SPAWN
+// Define diretório para salvar sessões (precisa ser criado)
+$sessionPath = __DIR__ . '/../sessions';
+if (!file_exists($sessionPath)) {
+    mkdir($sessionPath, 0777, true);
+}
+ini_set('session.save_path', $sessionPath);
+ini_set('session.use_cookies', 0); // Não usar cookies automáticos
+ini_set('session.use_only_cookies', 0);
+
+// 🔍 DEBUG: Log do que foi recebido
+error_log("=== NomaTV AUTH DEBUG ===");
+error_log("HTTP_COOKIE: " . ($_SERVER['HTTP_COOKIE'] ?? '(vazio)'));
+
+// Se tiver cookie PHPSESSID, usar ele
+$sessionIdFromCookie = null;
+if (!empty($_SERVER['HTTP_COOKIE'])) {
+    preg_match('/PHPSESSID=([a-zA-Z0-9]+)/', $_SERVER['HTTP_COOKIE'], $matches);
+    if (!empty($matches[1])) {
+        $sessionIdFromCookie = $matches[1];
+        session_id($sessionIdFromCookie);
+        error_log("Session ID extraído do cookie: " . $sessionIdFromCookie);
+    } else {
+        error_log("Cookie presente mas PHPSESSID não encontrado");
+    }
+} else {
+    error_log("Nenhum cookie HTTP_COOKIE presente");
+}
+
 // Inicia a sessão. Isso cria ou retoma a sessão do usuário.
 session_start();
+error_log("Session ID após session_start: " . session_id());
+error_log("Dados da sessão: " . json_encode($_SESSION));
 
 // Headers de segurança e CORS
 header('Content-Type: application/json; charset=utf-8');
@@ -66,7 +97,10 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
 // 🎯 ROTEAMENTO PRINCIPAL
 // =============================================
 $method = $_SERVER['REQUEST_METHOD'];
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+// Ler input do Node.js - pode vir de REQUEST_BODY (variável de ambiente) ou php://input
+$rawInput = $_SERVER['REQUEST_BODY'] ?? file_get_contents('php://input');
+$input = json_decode($rawInput, true) ?? [];
 $action = $input['action'] ?? '';
 
 try {
@@ -76,6 +110,25 @@ try {
                 loginUser($db, $input['username'] ?? '', $input['password'] ?? '');
             } elseif ($action === 'logout') {
                 logoutUser();
+            } elseif ($action === 'check') {
+                checkSession($db);
+            } elseif ($action === 'debug') {
+                // ✅ DEBUG ENDPOINT PARA VERIFICAR COOKIES E SESSÃO
+                error_log("=== DEBUG REQUEST ===");
+                error_log("HTTP_COOKIE: " . ($_SERVER['HTTP_COOKIE'] ?? '(vazio)'));
+                error_log("Session ID: " . session_id());
+                error_log("Session Data: " . json_encode($_SESSION));
+
+                standardResponse(true, [
+                    'cookies' => $_SERVER['HTTP_COOKIE'] ?? null,
+                    'session_id' => session_id(),
+                    'session_data' => $_SESSION,
+                    'server_vars' => [
+                        'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'],
+                        'HTTP_COOKIE' => $_SERVER['HTTP_COOKIE'] ?? null,
+                        'PHPSESSID' => $_COOKIE['PHPSESSID'] ?? null
+                    ]
+                ], 'Debug info');
             } else {
                 http_response_code(400);
                 standardResponse(false, null, 'Ação inválida.');
@@ -144,7 +197,8 @@ function loginUser(PDO $db, string $username, string $password): void
             'nome' => $user['nome'],
             'master' => $user['master'],
             'tipo' => $tipo,
-            'redirect' => $redirectUrl
+            'redirect' => $redirectUrl,
+            'session_id' => session_id()
         ], 'Login realizado com sucesso!');
 
     } catch (Exception $e) {
@@ -177,3 +231,60 @@ function logoutUser(): void
     session_destroy();
     standardResponse(true, null, 'Logout realizado com sucesso.');
 }
+
+/**
+ * ✅ CHECK SESSION - Verifica se a sessão está ativa
+ */
+function checkSession(PDO $db): void
+{
+    // Verifica se existe sessão ativa
+    if (empty($_SESSION['revendedor_id'])) {
+        http_response_code(401);
+        standardResponse(false, null, 'Sessão não encontrada ou expirada.');
+        return;
+    }
+
+    try {
+        // Busca dados atualizados do usuário no banco
+        $stmt = $db->prepare("
+            SELECT id_revendedor, usuario, nome, master, ativo
+            FROM revendedores
+            WHERE id_revendedor = ? AND ativo = 1
+        ");
+        $stmt->execute([$_SESSION['revendedor_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            // Usuário não existe mais ou foi desativado
+            $_SESSION = [];
+            session_destroy();
+            http_response_code(401);
+            standardResponse(false, null, 'Usuário inválido ou desativado.');
+            return;
+        }
+
+        // Determinar tipo baseado no master
+        $tipo = match($user['master']) {
+            'admin' => 'admin',
+            'sim' => 'revendedor',
+            'nao' => 'sub_revendedor',
+            default => 'revendedor'
+        };
+
+        // Retorna dados da sessão
+        standardResponse(true, [
+            'id' => $user['id_revendedor'],
+            'usuario' => $user['usuario'],
+            'nome' => $user['nome'],
+            'master' => $user['master'],
+            'tipo' => $tipo,
+            'session_id' => session_id()
+        ], 'Sessão válida.');
+
+    } catch (Exception $e) {
+        error_log("NomaTV v4.5 [AUTH] Erro em checkSession: " . $e->getMessage());
+        http_response_code(500);
+        standardResponse(false, null, 'Erro ao verificar sessão.');
+    }
+}
+

@@ -87,15 +87,14 @@ try {
     standardResponse(false, null, 'Erro de conexão com a base de dados. Por favor, execute db_installer.php.');
 }
 
-require_once __DIR__ . '/config/session.php';
-
-// ✅ AUTENTICAÇÃO USANDO SESSION COMUM
-$user = verificarAutenticacao();
-if (!$user) {
-    respostaNaoAutenticado();
+// ✅ AUTENTICAÇÃO PADRÃO (SUBSTITUI SIMULAÇÃO HARDCODED)
+session_start();
+if (empty($_SESSION['id_revendedor']) || empty($_SESSION['master'])) {
+    http_response_code(401);
+    exit('{"success":false,"message":"Usuário não autenticado"}');
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+$loggedInRevendedorId = $_SESSION['id_revendedor'];
+$loggedInUserType = $_SESSION['master'];
 
 /**
  * Roteamento principal

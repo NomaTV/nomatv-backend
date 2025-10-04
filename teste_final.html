@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESTE FINAL - Admin Token Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+        .test { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .success { border-left: 4px solid green; }
+        .error { border-left: 4px solid red; }
+        .info { border-left: 4px solid blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-success { background: #28a745; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>🎯 TESTE FINAL - Admin Token Problem</h1>
+
+    <div class="test info">
+        <h3>🔄 Fluxo Completo de Teste</h3>
+        <button class="btn-primary" onclick="runFullTest()">▶️ Executar Teste Completo</button>
+        <button class="btn-success" onclick="goToAdmin()">Ir para Admin</button>
+    </div>
+
+    <div class="test info">
+        <h3>📊 Logs do Teste</h3>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        async function runFullTest() {
+            log('🚀 Iniciando teste completo...');
+
+            // 1. Limpar tudo
+            log('🗑️ Limpando sessionStorage e cookies...');
+            sessionStorage.clear();
+            document.cookie.split(";").forEach(c => {
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
+
+            // 2. Fazer login
+            log('🔐 Fazendo login...');
+            try {
+                const response = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        action: 'login',
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+                log(`📡 Login response: ${data.success}`, data.success ? 'success' : 'error');
+
+                if (!data.success) {
+                    log('❌ Login falhou!', 'error');
+                    return;
+                }
+
+                // 3. Salvar sessionStorage (como no index.html)
+                if (data.data) {
+                    sessionStorage.setItem('user_id', data.data.id);
+                    sessionStorage.setItem('username', data.data.usuario);
+                    sessionStorage.setItem('user_name', data.data.nome);
+                    sessionStorage.setItem('user_type', data.data.tipo);
+                    sessionStorage.setItem('user_master', data.data.master);
+                    sessionStorage.setItem('logged_in', 'true');
+                    log('💾 SessionStorage salvo', 'success');
+                }
+
+                // 4. Aguardar um pouco
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // 5. Verificar se sessionStorage está presente
+                const hasStorage = sessionStorage.getItem('logged_in') === 'true';
+                log(`💾 SessionStorage check: ${hasStorage}`, hasStorage ? 'success' : 'error');
+
+                // 6. Testar check session
+                log('🔍 Testando check session...');
+                const checkResponse = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ action: 'check' })
+                });
+
+                const checkData = await checkResponse.json();
+                log(`📡 Check response: ${checkData.success}`, checkData.success ? 'success' : 'error');
+
+                if (checkData.success) {
+                    log('✅ TESTE COMPLETO BEM-SUCEDIDO!', 'success');
+                    log('🎉 Agora você pode ir para o admin sem problemas!', 'success');
+                } else {
+                    log('❌ Check session falhou!', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Erro no teste: ${error}`, 'error');
+            }
+        }
+
+        function goToAdmin() {
+            log('🔄 Redirecionando para admin...');
+            window.location.replace('/admin.html');
+        }
+
+        window.onload = function() {
+            log('📱 Página de teste carregada');
+        };
+    </script>
+</body>
+</html>

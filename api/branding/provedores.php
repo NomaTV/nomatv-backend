@@ -49,36 +49,13 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
 // =============================================
 // ✅ AUTENTICAÇÃO REAL: session_start igual ao auth.php
 // =============================================
-
-// ✅ CONFIGURAR SESSÕES PHP PARA FUNCIONAR COM SPAWN (igual ao auth.php)
-$sessionPath = __DIR__ . '/sessions';
-if (!file_exists($sessionPath)) {
-    mkdir($sessionPath, 0777, true);
-}
-ini_set('session.save_path', $sessionPath);
-ini_set('session.use_cookies', 0);
-ini_set('session.use_only_cookies', 0);
-
-// Se tiver cookie PHPSESSID, usar ele
-$sessionIdFromCookie = null;
-if (!empty($_SERVER['HTTP_COOKIE'])) {
-    preg_match('/PHPSESSID=([a-zA-Z0-9]+)/', $_SERVER['HTTP_COOKIE'], $matches);
-    if (!empty($matches[1])) {
-        $sessionIdFromCookie = $matches[1];
-        session_id($sessionIdFromCookie);
-        error_log("provedores.php - Session ID do cookie: " . $sessionIdFromCookie);
-    }
-}
-
 session_start();
-
-if (empty($_SESSION['revendedor_id'])) {
+if (empty($_SESSION['id_revendedor']) || empty($_SESSION['master'])) {
     http_response_code(401);
-    standardResponse(false, null, 'Usuário não autenticado - sessão inválida');
+    exit('{"success":false,"message":"Usuário não autenticado"}');
 }
-
-$loggedInRevendedorId = $_SESSION['revendedor_id'];
-$loggedInUserType = $_SESSION['master'] ?? 'nao';
+$loggedInRevendedorId = $_SESSION['id_revendedor'];
+$loggedInUserType = $_SESSION['master'];
 
 // =============================================
 // 🔗 ROTEAMENTO PRINCIPAL

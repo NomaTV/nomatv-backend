@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESTE FINAL - Admin Token Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+        .test { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .success { border-left: 4px solid green; }
+        .error { border-left: 4px solid red; }
+        .info { border-left: 4px solid blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-success { background: #28a745; color: white; border: none; }
+        .btn-danger { background: #dc3545; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>🎯 TESTE FINAL - Admin Token Problem (CORRIGIDO)</h1>
+
+    <div class="test info">
+        <h3>📊 Estado Atual</h3>
+        <div id="currentState"></div>
+    </div>
+
+    <div class="test success">
+        <h3>🔄 Fluxo Corrigido</h3>
+        <button class="btn-primary" onclick="runFullTest()">▶️ Executar Teste Completo</button>
+        <button class="btn-success" onclick="goToAdmin()">Ir para Admin</button>
+        <button class="btn-danger" onclick="clearAll()">Limpar Tudo</button>
+    </div>
+
+    <div class="test info">
+        <h3>📝 Logs do Teste</h3>
+        <div id="logs"></div>
+    </div>
+
+    <div class="test success">
+        <h3>✅ CORREÇÃO IMPLEMENTADA</h3>
+        <ul>
+            <li><strong>localStorage:</strong> Dados persistentes entre abas</li>
+            <li><strong>sessionStorage:</strong> Backup para compatibilidade</li>
+            <li><strong>Timestamp:</strong> Controle de validade do login</li>
+            <li><strong>Verificação dupla:</strong> Checa ambos os storages</li>
+        </ul>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateState() {
+            const state = document.getElementById('currentState');
+            state.innerHTML = `
+                <strong>🍪 Cookies:</strong> ${document.cookie || 'Nenhum'}<br>
+                <strong>💾 localStorage:</strong><br>
+                &nbsp;&nbsp;- logged_in: ${localStorage.getItem('logged_in') || 'null'}<br>
+                &nbsp;&nbsp;- user_id: ${localStorage.getItem('user_id') || 'null'}<br>
+                &nbsp;&nbsp;- username: ${localStorage.getItem('username') || 'null'}<br>
+                &nbsp;&nbsp;- timestamp: ${localStorage.getItem('login_timestamp') || 'null'}<br>
+                <strong>💾 sessionStorage:</strong><br>
+                &nbsp;&nbsp;- logged_in: ${sessionStorage.getItem('logged_in') || 'null'}<br>
+                &nbsp;&nbsp;- user_id: ${sessionStorage.getItem('user_id') || 'null'}<br>
+                <strong>📍 URL:</strong> ${window.location.href}<br>
+            `;
+        }
+
+        async function runFullTest() {
+            log('🚀 Iniciando teste completo com localStorage...');
+
+            // 1. Limpar tudo
+            clearAll();
+
+            // 2. Fazer login
+            log('🔐 Fazendo login...');
+            try {
+                const response = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        action: 'login',
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+                log(`📡 Login response: ${data.success}`, data.success ? 'success' : 'error');
+
+                if (!data.success) {
+                    log('❌ Login falhou!', 'error');
+                    return;
+                }
+
+                // 3. Salvar em ambos os storages (como no index.html corrigido)
+                if (data.data) {
+                    localStorage.setItem('user_id', data.data.id);
+                    localStorage.setItem('username', data.data.usuario);
+                    localStorage.setItem('user_name', data.data.nome);
+                    localStorage.setItem('user_type', data.data.tipo);
+                    localStorage.setItem('user_master', data.data.master);
+                    localStorage.setItem('logged_in', 'true');
+                    localStorage.setItem('login_timestamp', Date.now());
+
+                    sessionStorage.setItem('user_id', data.data.id);
+                    sessionStorage.setItem('username', data.data.usuario);
+                    sessionStorage.setItem('user_name', data.data.nome);
+                    sessionStorage.setItem('user_type', data.data.tipo);
+                    sessionStorage.setItem('user_master', data.data.master);
+                    sessionStorage.setItem('logged_in', 'true');
+
+                    log('💾 Dados salvos em localStorage e sessionStorage', 'success');
+                }
+
+                // 4. Aguardar um pouco
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // 5. Verificar se os dados estão presentes
+                const localLoggedIn = localStorage.getItem('logged_in') === 'true';
+                const sessionLoggedIn = sessionStorage.getItem('logged_in') === 'true';
+                log(`💾 localStorage check: ${localLoggedIn}`, localLoggedIn ? 'success' : 'error');
+                log(`💾 sessionStorage check: ${sessionLoggedIn}`, sessionLoggedIn ? 'success' : 'error');
+
+                // 6. Testar check session
+                log('🔍 Testando check session...');
+                const checkResponse = await fetch('/api/auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ action: 'check' })
+                });
+
+                const checkData = await checkResponse.json();
+                log(`📡 Check response: ${checkData.success}`, checkData.success ? 'success' : 'error');
+
+                if (checkData.success && localLoggedIn) {
+                    log('✅ TESTE COMPLETO BEM-SUCEDIDO!', 'success');
+                    log('🎉 Agora o admin deve funcionar corretamente!', 'success');
+                } else {
+                    log('❌ Teste falhou!', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Erro no teste: ${error}`, 'error');
+            }
+
+            updateState();
+        }
+
+        function goToAdmin() {
+            log('🔄 Redirecionando para admin...');
+            log('💾 localStorage logged_in:', localStorage.getItem('logged_in'));
+            window.location.replace('/admin.html');
+        }
+
+        function clearAll() {
+            log('🗑️ Limpando tudo...');
+            localStorage.clear();
+            sessionStorage.clear();
+            // Limpar cookies
+            document.cookie.split(";").forEach(c => {
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
+            updateState();
+            log('✅ Tudo limpo');
+        }
+
+        // Inicializar
+        window.onload = function() {
+            updateState();
+            log('🚀 Teste final carregado - Correção implementada!');
+        };
+    </script>
+</body>
+</html>
