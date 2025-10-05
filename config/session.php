@@ -1,75 +1,59 @@
 <?php
 /**
  * =================================================================
- * SESSÃO COMUM - NomaTV API v4.5
+ * AUTENTICAÇÃO SIMPLIFICADA - SEM COOKIES
  * =================================================================
- * 
- * Arquivo para inicializar sessão de forma consistente em todos os endpoints
- * Deve ser incluído no início de cada arquivo PHP que precisa de autenticação
- * 
+ *
+ * Sistema mais simples: usa Authorization header com token
+ * Não precisa de arquivos de sessão
+ *
  * =================================================================
  */
 
-// ✅ CONFIGURAR SESSÕES PHP PARA FUNCIONAR COM SPAWN
-$sessionPath = __DIR__ . '/sessions';
-if (!file_exists($sessionPath)) {
-    mkdir($sessionPath, 0777, true);
-}
-ini_set('session.save_path', $sessionPath);
-ini_set('session.use_cookies', 0);
-ini_set('session.use_only_cookies', 0);
-
-// 🔍 LOG de debug
-error_log("=== Iniciando sessão em " . basename($_SERVER['PHP_SELF']) . " ===");
-error_log("HTTP_COOKIE: " . ($_SERVER['HTTP_COOKIE'] ?? '(vazio)'));
-
-// Se tiver cookie PHPSESSID, usar ele
-$sessionIdFromCookie = null;
-if (!empty($_SERVER['HTTP_COOKIE'])) {
-    preg_match('/PHPSESSID=([a-zA-Z0-9]+)/', $_SERVER['HTTP_COOKIE'], $matches);
-    if (!empty($matches[1])) {
-        $sessionIdFromCookie = $matches[1];
-        session_id($sessionIdFromCookie);
-        error_log("Session ID extraído do cookie: " . $sessionIdFromCookie);
-    } else {
-        error_log("Cookie presente mas PHPSESSID não encontrado");
-    }
-} else {
-    error_log("Nenhum cookie HTTP_COOKIE presente");
+// Função para gerar token simples
+function gerarToken($userId, $username) {
+    return base64_encode($userId . ':' . $username . ':' . time());
 }
 
-// Iniciar sessão
-session_start();
-error_log("Session ID após session_start: " . session_id());
-error_log("Dados da sessão: " . json_encode($_SESSION));
+// Função para validar token
+function validarToken($token) {
+    if (!$token) return false;
 
-/**
- * Verifica se o usuário está autenticado
- * @return array|false Retorna os dados do usuário ou false
- */
+    $decoded = base64_decode($token);
+    $parts = explode(':', $decoded);
+
+    if (count($parts) !== 3) return false;
+
+    list($userId, $username, $timestamp) = $parts;
+
+    // Token válido por 24 horas
+    if (time() - $timestamp > 86400) return false;
+
+    return ['id' => $userId, 'usuario' => $username];
+}
+
+// Função para verificar autenticação via header
 function verificarAutenticacao() {
-    if (empty($_SESSION['revendedor_id'])) {
-        error_log("Sessão inválida - revendedor_id não encontrado");
-        return false;
+    // Tentar getallheaders() primeiro (para servidor web)
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    } else {
+        // Fallback para $_SERVER (para linha de comando ou outros contextos)
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['Authorization'] ?? '';
     }
-    
-    return [
-        'id' => $_SESSION['revendedor_id'],
-        'master' => $_SESSION['master'] ?? 'nao',
-        'usuario' => $_SESSION['usuario'] ?? 'unknown',
-        'tipo' => $_SESSION['tipo'] ?? 'sub_revendedor'
-    ];
+
+    if (empty($authHeader)) return false;
+
+    // Remove "Bearer " se existir
+    $token = str_replace('Bearer ', '', $authHeader);
+
+    return validarToken($token);
 }
 
-/**
- * Retorna resposta de não autenticado e encerra script
- */
+// Função para resposta não autenticado
 function respostaNaoAutenticado() {
     http_response_code(401);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'success' => false,
-        'message' => 'Usuário não autenticado - sessão inválida'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Não autenticado']);
     exit();
 }

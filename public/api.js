@@ -1,6 +1,6 @@
 // =================================================================
 // 📦 api.js – Ponte REST Central do NomaApp
-// Versão: 4.5 - ALINHADO COM AUTENTICAÇÃO POR SESSÃO
+// Versão: 4.5 - AUTENTICAÇÃO POR TOKEN (SEM COOKIES)
 // =================================================================
 
 const API_BASE = '/api/'; // Base para todos os endpoints
@@ -15,8 +15,13 @@ function getAuthHeaders(isFormData = false) {
     if (!isFormData) {
         headers['Content-Type'] = 'application/json';
     }
-    // A autenticação agora é gerenciada por cookies de sessão pelo navegador.
-    // Não precisamos mais de tokens ou dados específicos nos headers.
+
+    // ✅ AUTENTICAÇÃO POR TOKEN - usa Authorization header
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     return headers;
 }
 
@@ -30,8 +35,8 @@ function getAuthHeaders(isFormData = false) {
 async function apiFetch(endpoint, options = {}, expectBlob = false) {
     const isFormData = options.body instanceof FormData;
     
-    // A lógica de sessão do servidor é tratada automaticamente pelo navegador via cookies.
-    // O backend irá verificar o estado da sessão. Se não houver sessão válida, ele retornará 401.
+    // ✅ AUTENTICAÇÃO POR TOKEN - o backend verifica o Authorization header
+    // Se não houver token válido, o backend retornará 401
 
     let config = {
         ...options,
@@ -39,7 +44,6 @@ async function apiFetch(endpoint, options = {}, expectBlob = false) {
             ...getAuthHeaders(isFormData),
             ...options.headers
         },
-        credentials: 'include' // ✅ GARANTIR QUE COOKIES SEMPRE SEJAM ENVIADOS
     };
 
     if (config.body && !isFormData) {
@@ -49,11 +53,10 @@ async function apiFetch(endpoint, options = {}, expectBlob = false) {
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, config);
         
-        // Se o servidor retornar 401, o usuário não está autenticado.
-        // Redireciona para a página de login.
+        // ✅ Se o servidor retornar 401, o token é inválido ou expirou
         if (response.status === 401) {
             handleLogout();
-            throw new Error('Sessão expirada ou não autenticada.');
+            throw new Error('Token expirado ou inválido.');
         }
 
         if (expectBlob) {
@@ -94,62 +97,43 @@ async function apiFetch(endpoint, options = {}, expectBlob = false) {
 // --- 🔐 AUTENTICAÇÃO E NAVEGAÇÃO ---
 
 /**
- * Lógica de login ROBUSTA e PADRONIZADA.
+ * Lógica de login ROBUSTA e PADRONIZADA com TOKEN.
  * Trata diferentes formatos de resposta do backend e garante dados consistentes.
- * @param {string} username
- * @param {string} password
+ * @param {string} usuario - Nome do usuário
+ * @param {string} senha - Senha do usuário
  */
-async function login(username, password) {
+async function login(usuario, senha) {
     try {
         const response = await apiFetch('auth.php', {
             method: 'POST',
-            body: { action: 'login', username, password }
+            body: { action: 'login', usuario: usuario, senha: senha }
         });
 
         if (response.success && response.data) {
             const userData = response.data;
             
-            // ✅ NORMALIZAR DADOS (tratando diferentes formatos possíveis)
-            const revendedorId = userData.id_revendedor || userData.id || userData.revendedorId || 'unknown';
-            const masterType = userData.master || userData.masterType || 'nao';
-            const userName = userData.nome || userData.usuario || userData.username || userData.name || 'Usuário';
-            const userEmail = userData.email || '';
-            
-            // ✅ DETERMINAR TIPO DE USUÁRIO de forma robusta
-            let userType = userData.type || userData.userType;
-            if (!userType) {
-                // Fallback: determinar tipo baseado no master
-                if (masterType === 'admin') {
-                    userType = 'admin';
-                } else if (masterType === 'sim') {
-                    userType = 'revendedor';
-                } else {
-                    userType = 'sub_revendedor';
-                }
+            // ✅ SALVAR TOKEN no localStorage
+            if (userData.token) {
+                localStorage.setItem('authToken', userData.token);
+                console.log('✅ Token salvo no localStorage');
             }
             
-            // ✅ SALVAR DADOS PADRONIZADOS no sessionStorage
-            sessionStorage.setItem('revendedorId', revendedorId);
-            sessionStorage.setItem('masterType', masterType);
-            sessionStorage.setItem('userName', userName);
-            sessionStorage.setItem('userType', userType);
-            sessionStorage.setItem('userEmail', userEmail);
-            sessionStorage.setItem('loginTime', new Date().toISOString());
+            // ✅ SALVAR DADOS DO USUÁRIO no localStorage (opcional, para UI)
+            const userInfo = {
+                id: userData.id_revendedor || userData.id,
+                nome: userData.nome || userData.usuario,
+                email: userData.email || '',
+                tipo: userData.type || userData.userType || userData.tipo,
+                master: userData.master || 'nao',
+                loginTime: new Date().toISOString()
+            };
             
-            // ✅ LOG para verificar dados salvos
-            console.log('✅ Dados padronizados salvos no sessionStorage:', {
-                revendedorId: revendedorId,
-                masterType: masterType,
-                userName: userName,
-                userType: userType,
-                userEmail: userEmail
-            });
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
             
-            // ✅ DEBUG: Mostrar dados originais vs padronizados
-            console.log('📋 Dados originais do backend:', userData);
+            console.log('✅ Login realizado com sucesso:', userInfo);
             
-            // ✅ REDIRECIONAR baseado no tipo padronizado
-            switch (userType) {
+            // ✅ REDIRECIONAR baseado no tipo de usuário
+            switch (userInfo.tipo) {
                 case 'admin':
                     console.log('🔄 Redirecionando para admin.html...');
                     window.location.href = 'admin.html';
@@ -163,15 +147,8 @@ async function login(username, password) {
                     window.location.href = 'sub_revendedor.html';
                     break;
                 default:
-                    console.warn('⚠️ Tipo de usuário desconhecido:', userType);
-                    // Fallback baseado no masterType
-                    if (masterType === 'admin') {
-                        window.location.href = 'admin.html';
-                    } else if (masterType === 'sim') {
-                        window.location.href = 'revendedor.html';
-                    } else {
-                        window.location.href = 'sub_revendedor.html';
-                    }
+                    console.warn('⚠️ Tipo de usuário desconhecido:', userInfo.tipo);
+                    window.location.href = 'admin.html'; // fallback
             }
         } else {
             throw new Error(response.message || 'Credenciais inválidas.');
@@ -185,7 +162,7 @@ async function login(username, password) {
 
 /**
  * Lógica de logout.
- * Chama o endpoint de logout para destruir a sessão no servidor.
+ * Chama o endpoint de logout para invalidar o token no servidor.
  */
 async function handleLogout() {
     try {
@@ -194,8 +171,9 @@ async function handleLogout() {
             body: { action: 'logout' }
         });
     } finally {
-        // Limpa o sessionStorage.
-        sessionStorage.clear();
+        // ✅ LIMPAR TOKEN e dados do usuário do localStorage
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userInfo');
         // Redireciona para a página de login.
         window.location.href = 'index.html';
     }
@@ -206,9 +184,9 @@ async function handleLogout() {
  * Esta função deve ser chamada no início do script de cada página de painel.
  */
 function checkAuthentication() {
-    const loggedIn = sessionStorage.getItem('revendedorId') && sessionStorage.getItem('masterType');
-    if (!loggedIn) {
-        // Se não houver dados, o usuário não está logado. Redireciona para o login.
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        // ✅ Se não houver token, o usuário não está logado
         window.location.href = 'index.html';
     }
 }

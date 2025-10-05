@@ -11,24 +11,6 @@ const PORT = 8080;
 app.use(express.json());
 app.use(cookieParser());
 
-// Middleware de proteção: Bloqueia acesso direto aos painéis sem autenticação
-app.use((req, res, next) => {
-    const protectedPages = ['/admin.html', '/revendedor.html', '/sub_revendedor.html'];
-    
-    // Se está tentando acessar uma página protegida diretamente
-    if (protectedPages.includes(req.path)) {
-        // Verifica se tem cookie de sessão (PHPSESSID)
-        const hasCookie = req.headers.cookie && req.headers.cookie.includes('PHPSESSID');
-        
-        if (!hasCookie) {
-            // Sem sessão = redireciona para login
-            return res.redirect('/');
-        }
-    }
-    
-    next();
-});
-
 // Middleware para servir arquivos estáticos (painéis HTML)
 app.use(express.static(__dirname)); // Servir arquivos da pasta backend
 
@@ -63,6 +45,7 @@ app.all('/api/*.php', (req, res) => {
             QUERY_STRING: new URLSearchParams(req.query).toString(),
             CONTENT_TYPE: req.headers['content-type'] || 'application/json',
             HTTP_COOKIE: req.headers.cookie || '',
+            HTTP_AUTHORIZATION: req.headers.authorization || '', // Token de autenticação
             REQUEST_BODY: bodyJson, // Enviar body via variável de ambiente
             CONTENT_LENGTH: bodyJson.length.toString()
         }
@@ -84,21 +67,7 @@ app.all('/api/*.php', (req, res) => {
                 const response = JSON.parse(output);
                 
                 console.log(`✅ Resposta PHP:`, response.success ? 'SUCCESS' : 'FAILED');
-                
-                // Se for login bem-sucedido, define o cookie da sessão
-                if (response.success && response.data && response.data.session_id) {
-                    const sessionId = response.data.session_id;
-                    console.log(`🍪 Definindo cookie PHPSESSID: ${sessionId}`);
-                    res.cookie('PHPSESSID', sessionId, {
-                        httpOnly: false, // TEMPORÁRIO: Permitir acesso via JavaScript
-                        secure: false, // Para desenvolvimento local
-                        sameSite: 'lax', // Voltar para lax
-                        maxAge: 24 * 60 * 60 * 1000, // 24 horas
-                        path: '/',
-                        domain: 'localhost' // Definir domínio explicitamente
-                    });
-                }
-                
+
                 res.json(response);
             } catch (e) {
                 console.error('❌ Erro ao parsear JSON:', e.message);

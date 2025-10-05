@@ -18,9 +18,6 @@
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
-// Inicia a sessão. Isso cria ou retoma a sessão do usuário.
-session_start();
-
 // Headers de segurança e CORS
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -29,6 +26,20 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    exit();
+}
+
+require_once __DIR__ . '/config/database_sqlite.php';
+require_once __DIR__ . '/../config/session.php';
+
+// =============================================
+// 🔗 CONEXÃO COM BANCO DE DADOS
+// =============================================
+try {
+    $db = getDatabaseConnection();
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Erro de conexão com banco de dados']);
     exit();
 }
 
@@ -56,7 +67,7 @@ function standardResponse(bool $success, $data = null, $message = null, $extraDa
 // 🎯 ROTEAMENTO PRINCIPAL
 // =============================================
 $method = $_SERVER['REQUEST_METHOD'];
-$input = json_decode(file_get_contents(getenv('INPUT_FILE')), true) ?? [];
+$input = json_decode(getenv('REQUEST_BODY'), true) ?? [];
 $action = $input['action'] ?? '';
 
 try {
@@ -64,6 +75,8 @@ try {
         case 'POST':
             if ($action === 'login') {
                 loginUser($db, $input['usuario'] ?? '', $input['senha'] ?? '');
+            } elseif ($action === 'check') {
+                checkAuth($db);
             } elseif ($action === 'logout') {
                 logoutUser();
             } else {
@@ -111,10 +124,9 @@ function loginUser(PDO $db, string $username, string $password): void
             return;
         }
 
-        // ✅ CRIAÇÃO DA SESSÃO
-        $_SESSION['id_revendedor'] = $user['id_revendedor'];
-        $_SESSION['master'] = $user['master'];
-        $_SESSION['usuario'] = $user['usuario'];
+        // ✅ GERAÇÃO DO TOKEN DE AUTENTICAÇÃO
+        require_once __DIR__ . '/../config/session.php';
+        $token = gerarToken($user['id_revendedor'], $user['usuario']);
 
         // Resposta para o frontend
         standardResponse(true, [
@@ -123,7 +135,8 @@ function loginUser(PDO $db, string $username, string $password): void
             'nome' => $user['nome'],
             'master' => $user['master'],
             'tipo' => determinarTipoUsuario($user['master']),
-            'redirect' => determinarRedirect($user['master'])
+            'redirect' => determinarRedirect($user['master']),
+            'token' => $token
         ], 'Login realizado com sucesso!');
 
     } catch (Exception $e) {
@@ -157,12 +170,39 @@ function determinarRedirect(string $master): string
 }
 
 /**
- * Logout - Destrói a sessão
+ * Verificar autenticação via token
  */
-function logoutUser(): void
+function checkAuth(PDO $db): void
 {
-    // Destrói todos os dados da sessão
-    $_SESSION = [];
-    session_destroy();
-    standardResponse(true, null, 'Logout realizado com sucesso.');
+    require_once __DIR__ . '/../config/session.php';
+
+    $userData = verificarAutenticacao();
+    if (!$userData) {
+        http_response_code(401);
+        standardResponse(false, null, 'Token inválido ou expirado');
+        return;
+    }
+
+    // Buscar dados atualizados do usuário
+    $stmt = $db->prepare("
+        SELECT id_revendedor, usuario, nome, master, ativo
+        FROM revendedores
+        WHERE id_revendedor = ?
+    ");
+    $stmt->execute([$userData['id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user || !$user['ativo']) {
+        http_response_code(401);
+        standardResponse(false, null, 'Usuário não encontrado ou inativo');
+        return;
+    }
+
+    standardResponse(true, [
+        'id' => $user['id_revendedor'],
+        'usuario' => $user['usuario'],
+        'nome' => $user['nome'],
+        'master' => $user['master'],
+        'tipo' => determinarTipoUsuario($user['master'])
+    ], 'Autenticação válida');
 }
