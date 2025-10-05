@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Middleware para servir arquivos estáticos (painéis HTML)
-app.use(express.static(__dirname)); // Servir arquivos da pasta backend
+app.use(express.static(path.join(__dirname, 'public'))); // Servir arquivos da pasta public
 
 // Rota para /api/*.php - Executa PHP real
 app.all('/api/*.php', (req, res) => {
@@ -88,7 +88,7 @@ app.all('/api/*.php', (req, res) => {
 
 // Rota padrão para index.html
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
