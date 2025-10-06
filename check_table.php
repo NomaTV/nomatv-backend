@@ -1,6 +1,16 @@
 <?php
 $db = new PDO('sqlite:db.db');
 
+// Verificar estrutura da tabela
+echo "Estrutura da tabela provedores:\n";
+$result = $db->query('PRAGMA table_info(provedores)');
+$columns = $result->fetchAll(PDO::FETCH_ASSOC);
+foreach ($columns as $col) {
+    echo "- {$col['name']} ({$col['type']})" . ($col['notnull'] ? ' NOT NULL' : '') . ($col['pk'] ? ' PRIMARY KEY' : '') . "\n";
+}
+
+echo "\n";
+
 // Verificar se há dados na tabela
 $result = $db->query('SELECT COUNT(*) as total FROM provedores');
 $row = $result->fetch(PDO::FETCH_ASSOC);

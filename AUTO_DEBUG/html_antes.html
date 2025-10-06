@@ -1,0 +1,15 @@
+<!DOCTYPE html><html lang="pt-br"><head>
+    <meta charset="UTF-8">
+    <title>Teste</title>
+</head>
+<body>
+    <button id="seuBotao">Clique aqui</button>
+    <script>
+        document.getElementById('seuBotao').addEventListener('click', function() {
+            const p = document.createElement('p');
+            p.textContent = 'Atualização detectada após clique!';
+            document.body.appendChild(p);
+        });
+    </script>
+
+</body></html>

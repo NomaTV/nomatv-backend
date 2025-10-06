@@ -490,8 +490,8 @@ function deletarProvedor(PDO $db, string $loggedInRevendedorId, string $loggedIn
             return;
         }
 
-        // Soft delete
-        $stmt = $db->prepare("UPDATE provedores SET ativo = 0, atualizado_em = datetime('now') WHERE id_provedor = ?");
+        // Exclusão física do provedor
+        $stmt = $db->prepare("DELETE FROM provedores WHERE id_provedor = ?");
         $stmt->execute([$idToDelete]);
 
         if ($stmt->rowCount() === 0) {
@@ -500,7 +500,7 @@ function deletarProvedor(PDO $db, string $loggedInRevendedorId, string $loggedIn
             return;
         }
 
-        standardResponse(true, null, 'Provedor desativado com sucesso!');
+        standardResponse(true, null, 'Provedor excluído com sucesso!');
 
     } catch (PDOException $e) {
         error_log("NomaTV v4.5 [PROVEDORES] Erro deletar: " . $e->getMessage());

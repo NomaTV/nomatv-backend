@@ -27,14 +27,19 @@ app.all('/api/*.php', (req, res) => {
     }
     
     if (!fs.existsSync(phpPath)) {
+        console.log(`❌ Arquivo PHP não encontrado: ${phpPath}`);
         return res.status(404).json({ success: false, message: `Endpoint ${phpScript} não encontrado` });
     }
+    
+    console.log(`✅ Executando PHP: ${phpPath}`);
     
     // Caminho para PHP
     const phpExecutable = 'C:\\Users\\Asus\\Downloads\\_public_html (21)\\_api (12)\\php\\php.exe';
     
     // Preparar body como string JSON para enviar via variável de ambiente
     const bodyJson = JSON.stringify(req.body);
+    
+    console.log(`🔧 Spawnando PHP com comando: ${phpExecutable} ${phpPath}`);
     
     // Spawn PHP com dados via variável de ambiente
     const php = spawn(phpExecutable, [phpPath], {
@@ -50,6 +55,8 @@ app.all('/api/*.php', (req, res) => {
             CONTENT_LENGTH: bodyJson.length.toString()
         }
     });
+    
+    console.log(`🔄 PHP process spawned, PID: ${php.pid}`);
     
     // Não usar stdin, usar variável de ambiente REQUEST_BODY
     php.stdin.end();
@@ -67,6 +74,7 @@ app.all('/api/*.php', (req, res) => {
     });
     
     php.on('close', (code) => {
+        console.log(`🔚 PHP process closed with code: ${code}`);
         if (code === 0 && output.trim()) {
             try {
                 // Tenta parsear como JSON
@@ -89,6 +97,15 @@ app.all('/api/*.php', (req, res) => {
                 error: errorOutput || 'Erro desconhecido'
             });
         }
+    });
+    
+    php.on('error', (err) => {
+        console.error(`💥 PHP spawn error:`, err.message);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erro ao iniciar processo PHP',
+            error: err.message
+        });
     });
 });
 

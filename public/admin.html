@@ -1901,7 +1901,7 @@
                 const response = await listarProvedores(params);
                 
                 // ✅ FALLBACK: Se não há dados ou erro, usar dados mock
-                let provedoresData = response.data?.data || [];
+                let provedoresData = response.data || [];
                 if (!provedoresData || provedoresData.length === 0) {
                     console.warn('API não retornou dados de provedores, usando dados mock');
                     provedoresData = mockProvedoresData;

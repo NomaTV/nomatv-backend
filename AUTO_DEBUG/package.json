@@ -1,0 +1,12 @@
+{
+  "name": "test-automation",
+  "version": "1.0.0",
+  "description": "Automação de testes com Puppeteer",
+  "main": "test-automation.js",
+  "scripts": {
+    "test": "node test-automation.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0"
+  }
+}
