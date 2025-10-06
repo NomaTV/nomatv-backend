@@ -78,6 +78,26 @@ function generateSessionId() {
 }
 
 /**
+ * Função de compatibilidade para verificarAutenticacao
+ * Retorna dados do usuário logado ou false se não autenticado
+ * @return array|false
+ */
+function verificarAutenticacao() {
+    $sessionData = validateSession();
+
+    if (!$sessionData['success']) {
+        return false;
+    }
+
+    // Retornar dados no formato esperado pelo provedores.php
+    return [
+        'id' => $sessionData['revendedor_id'],
+        'tipo' => $sessionData['tipo'],
+        'nome' => $sessionData['nome'] ?? 'Usuário'
+    ];
+}
+
+/**
  * Identifica o revendedor dono de um provedor (direto ou via sub)
  * @param PDO $db Conexão com banco
  * @param int $provedor_id ID do provedor

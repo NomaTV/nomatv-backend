@@ -31,93 +31,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config/database_sqlite.php';
-
-/**
- * Resposta padronizada
- */
-function standardResponse(bool $success, $data = null, $message = null, $extraData = null): void
-{
-    echo json_encode([
-        'success' => $success,
-        'data' => $data,
-        'message' => $message,
-        'extraData' => $extraData
-    ]);
-    exit();
-}
+require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/helpers/response_helper.php';
 
 // =============================================
-// ✅ AUTENTICAÇÃO REAL: session_start igual ao auth.php
+// 🔗 CONEXÃO COM BANCO DE DADOS
 // =============================================
-
-// ✅ CONFIGURAR SESSÕES PHP PARA FUNCIONAR COM SPAWN (igual ao auth.php)
-$sessionPath = __DIR__ . '/sessions';
-if (!file_exists($sessionPath)) {
-    mkdir($sessionPath, 0777, true);
-}
-ini_set('session.save_path', $sessionPath);
-ini_set('session.use_cookies', 0);
-ini_set('session.use_only_cookies', 0);
-
-// Se tiver cookie PHPSESSID, usar ele
-$sessionIdFromCookie = null;
-if (!empty($_SERVER['HTTP_COOKIE'])) {
-    preg_match('/PHPSESSID=([a-zA-Z0-9]+)/', $_SERVER['HTTP_COOKIE'], $matches);
-    if (!empty($matches[1])) {
-        $sessionIdFromCookie = $matches[1];
-        session_id($sessionIdFromCookie);
-        error_log("provedores.php - Session ID do cookie: " . $sessionIdFromCookie);
-    }
+try {
+    $db = getDatabaseConnection();
+} catch (Exception $e) {
+    respostaErroPadronizada('Erro de conexão com banco de dados', 500);
 }
 
-session_start();
-
-if (empty($_SESSION['revendedor_id'])) {
-    http_response_code(401);
-    standardResponse(false, null, 'Usuário não autenticado - sessão inválida');
+// ✅ AUTENTICAÇÃO USANDO SESSION COMUM
+$user = verificarAutenticacao();
+if (!$user) {
+    respostaNaoAutenticadoPadronizada();
 }
 
-$loggedInRevendedorId = $_SESSION['revendedor_id'];
-$loggedInUserType = $_SESSION['master'] ?? 'nao';
+// Buscar dados completos do revendedor logado
+$loggedInRevendedorId = $user['id'] ?? 0;
+$dadosRevendedor = getRevendedorCompleto($db, $loggedInRevendedorId);
 
 // =============================================
 // 🔗 ROTEAMENTO PRINCIPAL
 // =============================================
 $method = $_SERVER['REQUEST_METHOD'];
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+// ✅ SUPORTE A FORM-DATA E JSON
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+if (strpos($contentType, 'application/json') !== false) {
+    // ✅ SUPORTE AO SERVIDOR NODE.JS: Ler de variável de ambiente se disponível
+    if (isset($_SERVER['REQUEST_BODY']) && !empty($_SERVER['REQUEST_BODY'])) {
+        $rawInput = $_SERVER['REQUEST_BODY'];
+        error_log("NomaTV DEBUG [INPUT] Raw JSON from REQUEST_BODY: " . $rawInput);
+    } else {
+        $rawInput = file_get_contents('php://input');
+        error_log("NomaTV DEBUG [INPUT] Raw JSON from php://input: " . $rawInput);
+    }
+    $input = json_decode($rawInput, true) ?? [];
+    error_log("NomaTV DEBUG [INPUT] Decoded JSON: " . json_encode($input));
+    error_log("NomaTV DEBUG [INPUT] JSON Error: " . json_last_error_msg());
+} else {
+    $input = $_POST;
+    error_log("NomaTV DEBUG [INPUT] Form data: " . json_encode($input));
+}
+
 $resourceId = $_GET['id'] ?? null;
 
 try {
     switch ($method) {
         case 'GET':
-            listarProvedores($db, $_GET, $loggedInRevendedorId, $loggedInUserType);
+            listarProvedores($db, $_GET, $loggedInRevendedorId, $dadosRevendedor['master']);
             break;
         case 'POST':
-            handlePostProvedores($db, $loggedInRevendedorId, $loggedInUserType, $input);
+            // DEBUG: Log do input recebido
+            error_log("NomaTV DEBUG [POST] Input recebido: " . json_encode($input));
+            error_log("NomaTV DEBUG [POST] Action: " . ($input['action'] ?? 'NÃO DEFINIDA'));
+            error_log("NomaTV DEBUG [POST] Content-Type: " . ($contentType ?? 'NÃO DEFINIDO'));
+            error_log("NomaTV DEBUG [POST] Raw POST: " . json_encode($_POST));
+            error_log("NomaTV DEBUG [POST] Raw input stream: " . file_get_contents('php://input'));
+            handlePostProvedores($db, $loggedInRevendedorId, $dadosRevendedor['master'], $input);
             break;
         case 'PUT':
             if (!$resourceId || empty(trim($resourceId))) {
-                http_response_code(400);
-                standardResponse(false, null, 'ID é obrigatório na query string.');
+                respostaErroPadronizada('ID é obrigatório na query string.', 400);
+                break;
             }
-            atualizarProvedor($db, $loggedInRevendedorId, $loggedInUserType, $resourceId, $input);
+            atualizarProvedor($db, $loggedInRevendedorId, $dadosRevendedor['master'], $resourceId, $input);
             break;
         case 'DELETE':
             if (!$resourceId || empty(trim($resourceId))) {
-                http_response_code(400);
-                standardResponse(false, null, 'ID é obrigatório na query string.');
+                respostaErroPadronizada('ID é obrigatório na query string.', 400);
+                break;
             }
-            deletarProvedor($db, $loggedInRevendedorId, $loggedInUserType, $resourceId);
+            deletarProvedor($db, $loggedInRevendedorId, $dadosRevendedor['master'], $resourceId);
             break;
         default:
-            http_response_code(405);
-            standardResponse(false, null, 'Método não permitido.');
-            break;
+            respostaErroPadronizada('Método não permitido.', 405);
     }
 } catch (Exception $e) {
     error_log("NomaTV v4.5 [PROVEDORES] Erro: " . $e->getMessage());
-    http_response_code(500);
-    standardResponse(false, null, 'Erro interno do servidor.');
+    respostaErroPadronizada('Erro interno do servidor.');
 }
 
 /**
@@ -165,6 +160,8 @@ function buscarRedeCompleta(PDO $db, string $idRevendedor): array
 function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, string $loggedInUserType): void
 {
     try {
+        error_log("listarProvedores - Iniciando com userId: $loggedInRevendedorId, userType: $loggedInUserType");
+        
         // Paginação
         $page = max(1, intval($params["page"] ?? 1));
         $limit = max(1, min(100, intval($params["limit"] ?? 25)));
@@ -199,14 +196,18 @@ function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, 
             $queryParams[] = $params["tipo"];
         }
         
+        error_log("listarProvedores - Antes da lógica hierárquica, userType: $loggedInUserType");
+        
         // ✅ NOVA LÓGICA HIERÁRQUICA E APLICAÇÃO DO FILTRO CORRETA
         if ($loggedInUserType === "admin") {
+            error_log("listarProvedores - Usuário é admin, vê todos os provedores");
             // Admin vê todos os provedores e pode filtrar por revendedor
             if (!empty($params["id_revendedor"])) {
                 $whereConditions[] = "p.id_revendedor = ?";
                 $queryParams[] = $params["id_revendedor"];
             }
         } elseif ($loggedInUserType === "sim") {
+            error_log("listarProvedores - Usuário é revendedor, aplicando filtros hierárquicos");
             // Revendedor vê provedores de toda sua rede descendente
             $redeCompleta = buscarRedeCompleta($db, $loggedInRevendedorId);
             
@@ -227,6 +228,7 @@ function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, 
                 $queryParams[] = $params["id_revendedor"];
             }
         } else {
+            error_log("listarProvedores - Usuário é sub-revendedor, vê apenas seus provedores");
             // Sub-revendedor vê apenas seus provedores
             $whereConditions[] = "p.id_revendedor = ?";
             $queryParams[] = $loggedInRevendedorId;
@@ -234,6 +236,9 @@ function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, 
 
         $whereClause = !empty($whereConditions) ? " WHERE " . implode(" AND ", $whereConditions) : "";
         $fullQuery = $baseQuery . $whereClause;
+        
+        error_log("listarProvedores - Where clause: $whereClause");
+        error_log("listarProvedores - Query params: " . json_encode($queryParams));
 
         // Contagem e estatísticas
         $statsQuery = "
@@ -301,7 +306,7 @@ function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, 
     } catch (Exception $e) {
         http_response_code(500);
         error_log("NomaTV v4.5 [PROVEDORES] Erro em listar: " . $e->getMessage());
-        standardResponse(false, null, 'Erro ao listar provedores.');
+        respostaErroPadronizada('Erro ao listar provedores.');
     }
 }
 
@@ -310,16 +315,26 @@ function listarProvedores(PDO $db, array $params, string $loggedInRevendedorId, 
  */
 function handlePostProvedores(PDO $db, string $loggedInRevendedorId, string $loggedInUserType, array $input): void
 {
+    // ✅ SUPORTE FLEXÍVEL: action pode estar no input ou no body
     $action = $input['action'] ?? '';
+
+    // DEBUG: Log detalhado
+    error_log("NomaTV DEBUG [handlePostProvedores] Action recebida: '{$action}'");
+    error_log("NomaTV DEBUG [handlePostProvedores] Input completo: " . json_encode($input));
+    error_log("NomaTV DEBUG [handlePostProvedores] loggedInRevendedorId: {$loggedInRevendedorId}");
+    error_log("NomaTV DEBUG [handlePostProvedores] loggedInUserType: {$loggedInUserType}");
 
     switch ($action) {
         case 'criar':
+            error_log("NomaTV DEBUG [handlePostProvedores] Chamando criarProvedor");
             criarProvedor($db, $loggedInRevendedorId, $loggedInUserType, $input);
             break;
         case 'testar_conexao':
+            error_log("NomaTV DEBUG [handlePostProvedores] Chamando testarConexaoProvedor");
             testarConexaoProvedor($input);
             break;
         default:
+            error_log("NomaTV DEBUG [handlePostProvedores] Ação inválida: '{$action}'");
             http_response_code(400);
             standardResponse(false, null, 'Ação inválida.');
             break;
@@ -341,7 +356,7 @@ function criarProvedor(PDO $db, string $loggedInRevendedorId, string $loggedInUs
 
     if (empty($nome) || empty($dns)) {
         http_response_code(400);
-        standardResponse(false, null, 'Nome e DNS são obrigatórios.');
+        respostaErroPadronizada('Nome e DNS são obrigatórios.');
         return;
     }
 

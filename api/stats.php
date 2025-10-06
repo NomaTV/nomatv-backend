@@ -31,81 +31,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Dependências obrigatórias
 require_once __DIR__ . '/config/database_sqlite.php';
 require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/helpers/response_helper.php';
 
-/**
- * Função auxiliar para padronizar respostas JSON.
- * @param bool $success Indica se a operação foi bem-sucedida.
- * @param array|null $data Dados a serem retornados.
- * @param string|null $message Mensagem de feedback.
- * @param array|null $extraData Dados adicionais (e.g., pagination, stats).
- */
-function standardResponse(bool $success, $data = null, $message = null, $extraData = null): void {
-    echo json_encode([
-        'success' => $success,
-        'data' => $data,
-        'message' => $message,
-        'extraData' => $extraData // Mantido para compatibilidade
-    ]);
-    exit(); // Garante que nada mais seja enviado
+// =============================================
+// 🔗 CONEXÃO COM BANCO DE DADOS
+// =============================================
+try {
+    $db = getDatabaseConnection();
+} catch (Exception $e) {
+    respostaErroPadronizada('Erro de conexão com banco de dados', 500);
 }
 
 // ✅ AUTENTICAÇÃO USANDO SESSION COMUM
 $user = verificarAutenticacao();
 if (!$user) {
-    respostaNaoAutenticado();
+    respostaNaoAutenticadoPadronizada();
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+
+// Buscar dados completos do revendedor logado
+$revendedorId = $user['id'] ?? 0;
+$dadosRevendedor = getRevendedorCompleto($db, $revendedorId);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        getDashboardStats($db);
+        getDashboardStats($db, $dadosRevendedor);
     } else {
         http_response_code(405);
-        standardResponse(false, null, 'Método não permitido.');
+        respostaErroPadronizada('Método não permitido.', 405);
     }
 } catch (Exception $e) {
     http_response_code(500);
-    error_log("NomaTV v4.4 [STATS] Erro: " . $e->getMessage()); // Mantido para log interno do servidor
-    standardResponse(false, null, 'Erro interno do servidor.');
+    error_log("NomaTV v4.4 [STATS] Erro: " . $e->getMessage());
+    respostaErroPadronizada('Erro interno do servidor.');
 }
 
 /**
  * Coleta e retorna as estatísticas principais do sistema.
  */
-function getDashboardStats(PDO $db): void {
+function getDashboardStats(PDO $db, array $dadosRevendedor): void {
     try {
+        // Estatísticas do dashboard
+        $stats = [];
+
         // Total de Revendedores (excluindo o admin)
         $stmtRevendedores = $db->query("SELECT COUNT(id_revendedor) FROM revendedores WHERE master != 'admin' AND ativo = 1");
-        $totalRevendedores = (int)$stmtRevendedores->fetchColumn();
+        $stats['total_revendedores'] = (int)$stmtRevendedores->fetchColumn();
 
-        // Total de Ativos (clientes)
-        $stmtAtivos = $db->query("SELECT COUNT(client_id) FROM client_ids WHERE ativo = 1");
-        $totalAtivos = (int)$stmtAtivos->fetchColumn();
+        // Total de Clientes (se existir tabela clientes)
+        try {
+            $stmtClientes = $db->query("SELECT COUNT(*) FROM clientes WHERE ativo = 1");
+            $stats['total_clientes'] = (int)$stmtClientes->fetchColumn();
+        } catch (Exception $e) {
+            $stats['total_clientes'] = 0;
+        }
 
-        // Total de Provedores
-        $stmtProvedores = $db->query("SELECT COUNT(id_provedor) FROM provedores WHERE ativo = 1");
-        $totalProvedores = (int)$stmtProvedores->fetchColumn();
+        // Receita Total (se existir tabela vendas/financeiro)
+        try {
+            $stmtReceita = $db->query("SELECT SUM(valor) FROM financeiro WHERE tipo = 'receita' AND status = 'pago'");
+            $stats['receita_total'] = (float)$stmtReceita->fetchColumn();
+        } catch (Exception $e) {
+            $stats['receita_total'] = 0.00;
+        }
 
-        // Revendedores com pagamento vencido
-        $hoje = date('Y-m-d');
-        $stmtVencidos = $db->prepare("SELECT COUNT(id_revendedor) FROM revendedores WHERE data_vencimento < ? AND master != 'admin' AND ativo = 1");
-        $stmtVencidos->execute([$hoje]);
-        $revendedoresVencidos = (int)$stmtVencidos->fetchColumn();
+        // Vendas do mês atual
+        try {
+            $stmtVendasMes = $db->query("SELECT COUNT(*) FROM financeiro WHERE tipo = 'receita' AND strftime('%Y-%m', criado_em) = strftime('%Y-%m', 'now')");
+            $stats['vendas_mes'] = (int)$stmtVendasMes->fetchColumn();
+        } catch (Exception $e) {
+            $stats['vendas_mes'] = 0;
+        }
 
-        $stats = [
-            'totalRevendedores' => $totalRevendedores,
-            'totalAtivos' => $totalAtivos,
-            'totalProvedores' => $totalProvedores,
-            'revendedoresVencidos' => $revendedoresVencidos
-        ];
+        // Status do sistema
+        $stats['status_sistema'] = 'online';
+        $stats['ultima_atualizacao'] = date('Y-m-d H:i:s');
 
-        standardResponse(true, $stats);
+        // Combinar dados do revendedor com estatísticas
+        $responseData = array_merge($dadosRevendedor, [
+            'stats' => $stats,
+            'dashboard' => $stats // Para compatibilidade
+        ]);
+
+        respostaSucessoPadronizada($responseData, 'Estatísticas carregadas com sucesso', [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'versao_api' => '4.5'
+        ]);
 
     } catch (Exception $e) {
-        // http_response_code(500); // Já definido no bloco try/catch principal
-        error_log("NomaTV v4.4 [STATS] Erro em getDashboardStats: " . $e->getMessage()); // Mantido para log interno
-        standardResponse(false, null, 'Erro ao buscar estatísticas.');
+        error_log("Erro ao coletar estatísticas: " . $e->getMessage());
+        respostaErroPadronizada('Erro ao carregar estatísticas do dashboard.');
     }
 }
 ?>

@@ -25,26 +25,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/config/database_sqlite.php';
 require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/helpers/response_helper.php';
 
-// ✅ FUNÇÃO RESPOSTA PADRONIZADA
-function standardResponse(bool $success, $data = null, $message = null, $extraData = null): void
-{
-    echo json_encode([
-        'success' => $success,
-        'data' => $data,
-        'message' => $message,
-        'extraData' => $extraData
-    ]);
-    exit();
+// =============================================
+// 🔗 CONEXÃO COM BANCO DE DADOS
+// =============================================
+try {
+    $db = getDatabaseConnection();
+} catch (Exception $e) {
+    respostaErroPadronizada('Erro de conexão com banco de dados', 500);
 }
 
 // ✅ AUTENTICAÇÃO USANDO SESSION COMUM
 $user = verificarAutenticacao();
 if (!$user) {
-    respostaNaoAutenticado();
+    respostaNaoAutenticadoPadronizada();
 }
-$loggedInRevendedorId = $user['id'];
-$loggedInUserType = $user['master'];
+
+// Buscar dados completos do revendedor logado
+$loggedInRevendedorId = $user['id'] ?? 0;
+$dadosRevendedor = getRevendedorCompleto($db, $loggedInRevendedorId);
 
 // ✅ ROTEAMENTO PRINCIPAL
 $method = $_SERVER['REQUEST_METHOD'];
@@ -53,18 +53,16 @@ $resourceId = $_GET['id'] ?? null;
 
 try {
     switch ($method) {
-        case 'GET': listarRevendedores($db, $_GET, $loggedInRevendedorId, $loggedInUserType); break;
-        case 'POST': handlePostRevendedores($db, $loggedInRevendedorId, $loggedInUserType, $input); break;
-        case 'PUT': atualizarRevendedor($db, $loggedInRevendedorId, $loggedInUserType, $resourceId, $input); break;
-        case 'DELETE': deletarRevendedor($db, $loggedInRevendedorId, $loggedInUserType, $resourceId); break;
-        default: 
-            http_response_code(405);
-            standardResponse(false, null, 'Método não permitido.');
+        case 'GET': listarRevendedores($db, $_GET, $loggedInRevendedorId, $dadosRevendedor['master']); break;
+        case 'POST': handlePostRevendedores($db, $loggedInRevendedorId, $dadosRevendedor['master'], $input); break;
+        case 'PUT': atualizarRevendedor($db, $loggedInRevendedorId, $dadosRevendedor['master'], $resourceId, $input); break;
+        case 'DELETE': deletarRevendedor($db, $loggedInRevendedorId, $dadosRevendedor['master'], $resourceId); break;
+        default:
+            respostaErroPadronizada('Método não permitido.', 405);
     }
 } catch (Exception $e) {
     error_log("NomaTV v4.5 [REVENDEDORES] Erro: " . $e->getMessage());
-    http_response_code(500);
-    standardResponse(false, null, 'Erro interno do servidor.');
+    respostaErroPadronizada('Erro interno do servidor.');
 }
 
 /**

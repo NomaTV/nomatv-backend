@@ -57,8 +57,14 @@ app.all('/api/*.php', (req, res) => {
     let output = '';
     let errorOutput = '';
     
-    php.stdout.on('data', (data) => output += data.toString());
-    php.stderr.on('data', (data) => errorOutput += data.toString());
+    php.stdout.on('data', (data) => {
+        output += data.toString();
+        console.log(`📝 PHP STDOUT: ${data.toString().trim()}`);
+    });
+    php.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        console.log(`⚠️  PHP STDERR: ${data.toString().trim()}`);
+    });
     
     php.on('close', (code) => {
         if (code === 0 && output.trim()) {

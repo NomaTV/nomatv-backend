@@ -1,0 +1,56 @@
+
+=== RELATÓRIO DE DEBUG NomaTV ===
+Data: 2025-10-05T16:28:31.031Z
+
+LOGS DO DEBUG:
+[2025-10-05T16:28:28.055Z] 🔧 Iniciando debug automático NomaTV...
+[2025-10-05T16:28:28.062Z] 🔍 Verificando bancos de dados...
+[2025-10-05T16:28:28.063Z] Executando: C:\Users\Asus\Downloads\_public_html (21)\_api (12)\php\php.exe temp_check.php
+[2025-10-05T16:28:28.139Z] ✅ Bancos verificados:
+[2025-10-05T16:28:28.139Z] 
+Arquivo: api/db.db
+Registros provedores: 0
+Colunas: id_provedor, nome, dns, id_revendedor, ativo, criado_em, tipo, usuario, senha, atualizado_em, 
+
+Arquivo: db.db
+Registros provedores: 0
+Colunas: id_provedor, nome, dns, id_revendedor, ativo, criado_em, tipo, usuario, senha, atualizado_em, 
+
+
+[2025-10-05T16:28:28.141Z] 🔄 Sincronizando bancos de dados...
+[2025-10-05T16:28:28.144Z] Executando: powershell -Command Copy-Item db.db api/db.db -Force
+[2025-10-05T16:28:28.399Z] ✅ Banco api/db.db sincronizado
+[2025-10-05T16:28:28.399Z] 🔍 Verificando bancos de dados...
+[2025-10-05T16:28:28.400Z] Executando: C:\Users\Asus\Downloads\_public_html (21)\_api (12)\php\php.exe temp_check.php
+[2025-10-05T16:28:28.465Z] ✅ Bancos verificados:
+[2025-10-05T16:28:28.465Z] 
+Arquivo: api/db.db
+Registros provedores: 0
+Colunas: id_provedor, nome, dns, id_revendedor, ativo, criado_em, tipo, usuario, senha, atualizado_em, 
+
+Arquivo: db.db
+Registros provedores: 0
+Colunas: id_provedor, nome, dns, id_revendedor, ativo, criado_em, tipo, usuario, senha, atualizado_em, 
+
+
+[2025-10-05T16:28:28.467Z] 🔐 Testando autenticação...
+[2025-10-05T16:28:28.468Z] Executando: C:\Users\Asus\Downloads\_public_html (21)\_api (12)\php\php.exe temp_auth_test.php
+[2025-10-05T16:28:28.572Z] ❌ Autenticação falhou: Credenciais inválidas
+[2025-10-05T16:28:28.573Z] 📊 Testando provedores API...
+[2025-10-05T16:28:28.574Z] Executando: C:\Users\Asus\Downloads\_public_html (21)\_api (12)\php\php.exe temp_providers_test.php
+[2025-10-05T16:28:28.644Z] ✅ Provedores API funcionando - 0 registros
+[2025-10-05T16:28:28.645Z] 🚀 Verificando se servidor já está rodando...
+[2025-10-05T16:28:28.707Z] 📡 Servidor não está rodando, iniciando...
+[2025-10-05T16:28:29.017Z] ✅ Servidor iniciado
+[2025-10-05T16:28:31.030Z] 🛑 Parando servidor...
+
+=== RESUMO ===
+- Bancos verificados e sincronizados
+- Autenticação testada
+- API de provedores testada
+- Servidor iniciado e parado
+
+=== PRÓXIMOS PASSOS ===
+1. Verificar se há dados de teste nos bancos
+2. Testar frontend completo
+3. Verificar logs do servidor em produção
