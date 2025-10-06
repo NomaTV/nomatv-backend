@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-10-06T07:14:59.475Z",
+  "fases": {
+    "login": "✅ Sucesso",
+    "navegacao": "✅ Sucesso",
+    "listar": "✅ 0 provedores encontrados",
+    "criar": "✅ Sucesso",
+    "editar": "✅ Sucesso",
+    "excluir": "⚠️ Possível falha"
+  },
+  "screenshots": [
+    "AUTO_DEBUG/antes_login.png",
+    "AUTO_DEBUG/depois_login.png",
+    "AUTO_DEBUG/provedores_pagina.png",
+    "AUTO_DEBUG/modal_novo_provedor.png",
+    "AUTO_DEBUG/antes_salvar_provedor.png",
+    "AUTO_DEBUG/depois_criar_provedor.png",
+    "AUTO_DEBUG/final_provedores.png"
+  ],
+  "arquivos": [
+    "AUTO_DEBUG/html_provedores.html",
+    "AUTO_DEBUG/html_final.html",
+    "AUTO_DEBUG/provedores_lista.json"
+  ]
+}
